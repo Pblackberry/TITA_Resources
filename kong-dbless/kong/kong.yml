@@ -1,0 +1,170 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  # ---------------- AUTH ----------------
+  - name: auth-service
+    url: http://auth-service:8000
+    routes:
+      - name: auth-login
+        paths:
+          - /api/v1/auth/login
+        methods:
+          - POST
+          - OPTIONS
+        strip_path: false
+
+      - name: auth-create
+        paths:
+          - /api/v1/auth/create
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+  # ---------------- ANALÍTICA ----------------
+  - name: micorservicio-analitica
+    url: http://microservicio-analitica:8101
+    routes:
+      - name: analitica-lectura
+        paths:
+          - /api/v1/analytics/summary
+          - /api/v1/analytics/drinks-ranking
+          - /api/v1/analytics/get-events
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+      - name: analitica-escritura
+        paths:
+          - /api/v1/analytics/events
+          - /api/v1/analytics/transactions
+        methods:
+          - POST
+          - OPTIONS
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names:
+                - authkey
+
+  # ---------------- CATÁLOGO ----------------
+  - name: micorservicio-catalogo
+    url: http://microservicio-catalogo:8102
+    routes:
+      - name: catalogo-lectura
+        paths:
+          - /catalog/get
+          - /catalog/check-update
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: false 
+        plugins:
+          - name: key-auth
+            config:
+              key_names:
+                - authkey
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+
+      - name: catalogo-escritura
+        paths:
+          - /catalog/add-item
+          - /catalog/update-state
+          - /catalog/update-price
+          - /catalog/update-item/new
+        methods:
+          - POST
+          - PATCH
+          - OPTIONS
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+      - name: cobot-lectura
+        paths:
+          - /catalog/cobots
+          - /catalog/all-items
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+  
+  - name: microservicio-catalogo-admin
+    url: http://microservicio-catalogo:8102/catalog/get
+    routes:
+      - name: catalogo-lectura-admin
+        paths:
+          - /admin/catalog/get
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+
+consumers:
+  - username: interfaz-cobot
+    keyauth_credentials:
+      - key: ""
+
+  - username: modulo-administrativo
+    jwt_secrets:
+      - algorithm: RS256
+        key: "auth-service"
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+
+          -----END PUBLIC KEY-----
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - http://localhost:5173
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Content-Type
+        - Authorization
+      credentials: false
+      max_age: 3600
